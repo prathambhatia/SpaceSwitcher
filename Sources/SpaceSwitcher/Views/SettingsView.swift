@@ -7,27 +7,39 @@ public final class SettingsModel: ObservableObject {
     @Published public var spaces: [SpaceInfo] = []
     @Published public var desktopsMissingShortcuts: [Int] = []
 
+    @Published public var launchAtLogin: Bool
+
     private let spaceManager: SpaceManager
     private let switcher: SpaceSwitcher
     private let accessibility: AccessibilityManager
+    private let loginItem: LoginItemManager
 
     public init(
         spaceManager: SpaceManager,
         switcher: SpaceSwitcher,
         accessibility: AccessibilityManager,
+        loginItem: LoginItemManager,
         registeredShortcuts: Int
     ) {
         self.spaceManager = spaceManager
         self.switcher = switcher
         self.accessibility = accessibility
+        self.loginItem = loginItem
         self.isTrusted = accessibility.isTrusted
         self.registeredShortcuts = registeredShortcuts
+        self.launchAtLogin = loginItem.isEnabled
     }
 
     public func refresh() {
         isTrusted = accessibility.isTrusted
         spaces = spaceManager.spaces()
         desktopsMissingShortcuts = MissionControlShortcuts.desktopsMissingShortcuts(in: spaces)
+        launchAtLogin = loginItem.isEnabled
+    }
+
+    public func setLaunchAtLogin(_ enabled: Bool) {
+        _ = enabled ? loginItem.enable() : loginItem.disable()
+        launchAtLogin = loginItem.isEnabled
     }
 
     public func openSystemSettings() { accessibility.openSystemSettings() }
@@ -73,6 +85,12 @@ public struct SettingsView: View {
             Text("⌘1 – ⌘9 switch to the Space at that position in Mission Control.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+
+            Toggle(
+                "Launch at login",
+                isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) })
+            )
+            .toggleStyle(.checkbox)
 
             if !model.isTrusted {
                 Text("Needed to send the Desktop-switch keystroke. Fullscreen Spaces work without it.")

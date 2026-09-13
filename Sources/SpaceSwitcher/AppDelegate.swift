@@ -6,6 +6,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private let spaceManager = SpaceManager()
     private let accessibility = AccessibilityManager()
     private let hotkeys = HotkeyManager()
+    private let loginItem = LoginItemManager()
     private lazy var switcher = SpaceSwitcher(spaceManager: spaceManager, accessibility: accessibility)
 
     private var menuBar: MenuBarController?
@@ -26,8 +27,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         menuBar?.onOpenSettings = { [weak self] in self?.showSettings() }
 
+        loginItem.enableUnlessUserDecided()
+
         registeredShortcuts = hotkeys.registerAll()
-        Log.line("registered \(registeredShortcuts)/9 hotkeys")
+        Log.line("registered \(registeredShortcuts)/9 hotkeys, login item \(loginItem.isEnabled ? "on" : "off")")
         hotkeys.onShortcut = { [weak self] position in
             // The strip is re-read inside switchTo, so this reflects Spaces added or
             // removed since the last press.
@@ -69,6 +72,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             spaceManager: spaceManager,
             switcher: switcher,
             accessibility: accessibility,
+            loginItem: loginItem,
             registeredShortcuts: registeredShortcuts
         )
         settingsModel = model
