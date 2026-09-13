@@ -26,9 +26,8 @@ curl -fsSL https://raw.githubusercontent.com/prathambhatia/SpaceSwitcher/main/in
 It builds from source, installs to `/Applications`, sets itself to start at login, and
 opens the one System Settings pane you need.
 
-**Requirements:** macOS 14 or later, and Xcode Command Line Tools. If you do not have the
-tools, run `xcode-select --install` first — the installer will tell you if they are
-missing.
+**Requirements:** macOS 14 or later. If the Xcode Command Line Tools are missing, the
+installer installs them for you.
 
 ### The one manual step
 

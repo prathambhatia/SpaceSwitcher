@@ -27,12 +27,31 @@ echo
 major="$(sw_vers -productVersion | cut -d. -f1)"
 [[ "$major" -ge 14 ]] || fail "needs macOS 14 or later (found $(sw_vers -productVersion))."
 
-if ! command -v swiftc >/dev/null 2>&1; then
-  fail "Swift compiler not found. Run 'xcode-select --install', then re-run this."
-fi
+# Xcode Command Line Tools supply both swiftc and git. If they are missing, install them
+# rather than asking the user to go away and come back.
+if ! swiftc --version >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+  bold "Xcode Command Line Tools are required — installing them now."
+  echo "A system dialog will appear. Click Install and accept the licence;"
+  echo "this script waits and continues on its own."
+  echo
 
-if ! command -v git >/dev/null 2>&1; then
-  fail "git not found. Run 'xcode-select --install', then re-run this."
+  # Returns immediately and does the work in Apple's own installer UI. Already-running or
+  # already-installed both exit non-zero, so the wait loop below is what actually decides.
+  xcode-select --install >/dev/null 2>&1 || true
+
+  waited=0
+  until swiftc --version >/dev/null 2>&1 && command -v git >/dev/null 2>&1; do
+    sleep 5
+    waited=$((waited + 5))
+    if [ "$waited" -ge 1800 ]; then
+      fail "Command Line Tools did not finish installing. Run 'xcode-select --install' and try again."
+    fi
+    if [ $((waited % 60)) -eq 0 ]; then
+      echo "    still waiting... (${waited}s)"
+    fi
+  done
+  echo "    Command Line Tools ready."
+  echo
 fi
 
 [[ -w "$DEST_DIR" ]] || fail "$DEST_DIR is not writable. Re-run with SPACESWITCHER_DEST=\"\$HOME/Applications\""
