@@ -33,16 +33,26 @@ public final class AccessibilityManager {
         NSWorkspace.shared.open(Self.settingsURL)
     }
 
-    /// Polls for authorisation changes — macOS posts no notification when TCC is granted,
-    /// and the grant arrives while the user is in System Settings, not in our app.
+    /// Watches for the permission being granted.
+    ///
+    /// macOS posts no notification for this, and the grant happens in System Settings
+    /// rather than in our app, so polling is the only way to notice. It runs *only* while
+    /// permission is missing and stops the moment it arrives — once granted there is
+    /// nothing left to wait for, and a timer ticking forever in a background app earns
+    /// its keep in neither correctness nor courtesy.
+    ///
+    /// Revocation is caught without polling: it is rare, and every switch checks
+    /// `isTrusted` anyway, at which point monitoring is started again.
     public func startMonitoring() {
-        guard pollTimer == nil else { return }
+        guard pollTimer == nil, !isTrusted else { return }
+
         let timer = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in
             guard let self else { return }
             let current = self.isTrusted
             guard current != self.lastKnownState else { return }
             self.lastKnownState = current
             self.onChange?(current)
+            if current { self.stopMonitoring() }
         }
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer

@@ -89,7 +89,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>SpaceSwitcher</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>1.1</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <!-- Menu-bar only: no Dock icon, no app switcher entry. -->
@@ -104,8 +104,16 @@ PLIST
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 echo "==> Signing"
-# Ad-hoc signature. Note: this changes on every rebuild, which can invalidate the
-# existing Accessibility grant — see README, "Rebuilding and Accessibility".
-codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
+# A stable identity keeps the Accessibility grant across rebuilds; ad-hoc signing does
+# not, because its signature is just a hash of the contents. Scripts/create-signing-identity.sh
+# creates one. Falling back to ad-hoc keeps this working for anyone who has not.
+IDENTITY="${SPACESWITCHER_IDENTITY:-SpaceSwitcher Self Signed}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
+  echo "    using \"$IDENTITY\""
+  codesign --force --sign "$IDENTITY" --timestamp=none "$APP" >/dev/null 2>&1
+else
+  echo "    ad-hoc (run Scripts/create-signing-identity.sh to stop re-granting Accessibility)"
+  codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
+fi
 
 echo "==> Built $APP"

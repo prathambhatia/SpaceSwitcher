@@ -37,6 +37,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             let outcome = self.switcher.switchTo(position: position)
             Log.line("⌘\(position) -> \(outcome)")
+            // Permission was revoked since launch; watch for it coming back.
+            if case .accessibilityRequired = outcome { self.accessibility.startMonitoring() }
         }
 
         accessibility.onChange = { [weak self] _ in self?.settingsModel?.refresh() }
