@@ -158,25 +158,25 @@ Swift 6.4) is also newer than the installed compiler (6.3.3), which rejects it.
 `Scripts/build-app.sh` drives `swiftc` directly against `MacOSX26.sdk` and assembles a
 standard `.app` bundle. `Package.swift` is retained for Xcode later.
 
-### Accepted drawback — resolved 2026-09-13
+### Accepted drawback
 
-The bundle was **ad-hoc signed**, so its code signature changed on every build and macOS
-treated each build as a different app, invalidating the Accessibility grant every time.
+The bundle is **ad-hoc signed**, so its code signature changes on every build and macOS
+treats each build as a different app — **the Accessibility grant is invalidated by every
+rebuild**. Documented in the README.
 
-Resolved by `Scripts/create-signing-identity.sh`, which creates a self-signed code-signing
-certificate. The designated requirement TCC matches against changes from a content hash to
-`identifier "com.prathambhatia.spaceswitcher" and certificate leaf = H"…"`, which is
-identical across rebuilds — verified by building twice and diffing it, then by rebuilding
-with a genuinely different CDHash and confirming the shortcuts still worked without
-re-granting.
+A self-signed code-signing certificate was tried as a fix (2026-09-13) and **did not
+work**. The designated requirement did change from a content hash to
+`identifier "com.prathambhatia.spaceswitcher" and certificate leaf = H"…"`, identical
+across two builds — but installing a genuinely different binary signed by the same
+certificate still lost the grant: ⌘1 and ⌘5 moved nothing until it was re-granted by hand.
+The inspection looked convincing and the end-to-end test contradicted it, which is why the
+test is the thing that counts.
 
-Three undocumented traps, each failing silently, are encoded in that script: OpenSSL 3's
-default PKCS#12 encryption is unreadable by Apple's Security framework ("MAC verification
-failed"), an empty passphrase fails identically, and without `add-trusted-cert` the
-identity imports but reports `CSSMERR_TP_NOT_TRUSTED` and codesign refuses it.
+Removed again rather than kept, since this app is not expected to change often and the
+certificate, its keychain entry and the trust settings were all cost for no benefit.
 
-Still true for the one-line installer, which signs ad-hoc — acceptable, since people who
-install rather than develop grant permission once.
+**Revisit if:** rebuilds become frequent — but start from the end-to-end test, not from the
+designated requirement.
 
 ## Alternatives rejected
 

@@ -125,12 +125,11 @@ still set the order yourself by dragging in Mission Control, and ⌘N follows.
   They are filtered out against the live window list, so they do not shift your numbering.
 - **A Split View Space whose partner app quit** may ignore activation. This is detected and
   falls back to sliding.
-- **Rebuilding invalidates the Accessibility grant — unless you create a signing identity.**
-  macOS matches the grant against the app's code signature. Ad-hoc signing has no identity,
-  so every build looks like a new app. Run `./Scripts/create-signing-identity.sh` once and
-  builds are signed with a stable certificate instead, after which the grant survives
-  rebuilds. The one-line installer uses ad-hoc signing, which is fine for anyone who
-  installs once rather than rebuilds.
+- **Rebuilding invalidates the Accessibility grant.** macOS matches the grant against the
+  app's code signature, and ad-hoc signing makes that a hash of the contents, so every
+  build looks like a new app. After rebuilding, remove SpaceSwitcher from Accessibility
+  with `−` and add it again. This only affects people who rebuild; installing once and
+  granting once is unaffected.
 
 ---
 
@@ -147,18 +146,6 @@ Or just build without installing:
 ```bash
 ./Scripts/build-app.sh   # produces build/SpaceSwitcher.app
 ```
-
-If you expect to rebuild often, create a signing identity first so you only grant
-Accessibility once:
-
-```bash
-./Scripts/create-signing-identity.sh
-```
-
-It makes a self-signed code-signing certificate in your login keychain and trusts it for
-code signing only. `build-app.sh` uses it automatically when present and falls back to
-ad-hoc otherwise. You will be asked for Accessibility one last time after the first build
-that uses it, because the signature changes; from then on it sticks.
 
 ### Diagnostics
 

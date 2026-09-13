@@ -104,16 +104,8 @@ PLIST
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 echo "==> Signing"
-# A stable identity keeps the Accessibility grant across rebuilds; ad-hoc signing does
-# not, because its signature is just a hash of the contents. Scripts/create-signing-identity.sh
-# creates one. Falling back to ad-hoc keeps this working for anyone who has not.
-IDENTITY="${SPACESWITCHER_IDENTITY:-SpaceSwitcher Self Signed}"
-if security find-identity -v -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
-  echo "    using \"$IDENTITY\""
-  codesign --force --sign "$IDENTITY" --timestamp=none "$APP" >/dev/null 2>&1
-else
-  echo "    ad-hoc (run Scripts/create-signing-identity.sh to stop re-granting Accessibility)"
-  codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
-fi
+# Ad-hoc. The signature is a hash of the contents, so a rebuild invalidates the
+# Accessibility grant and it has to be granted again — see README.
+codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
 
 echo "==> Built $APP"
