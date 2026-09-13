@@ -134,25 +134,6 @@ still set the order yourself by dragging in Mission Control, and ⌘N follows.
 
 ---
 
-## Known limitations
-
-- **Sliding is visible** the first time a same-app fullscreen Space is used, and every
-  time for apps with no AppleScript interface.
-- **Empty Desktops** cannot be identified from window contents alone. Position normally
-  comes straight from the window server, which does identify them; only the fallback path
-  is affected.
-- **Ghost Spaces** are left in macOS's preference file when a fullscreen window closes.
-  They are filtered out against the live window list, so they do not shift your numbering.
-- **A Split View Space whose partner app quit** may ignore activation. This is detected and
-  falls back to sliding.
-- **Rebuilding invalidates the Accessibility grant.** macOS matches the grant against the
-  app's code signature, and ad-hoc signing makes that a hash of the contents, so every
-  build looks like a new app. After rebuilding, remove SpaceSwitcher from Accessibility
-  with `−` and add it again. This only affects people who rebuild; installing once and
-  granting once is unaffected.
-
----
-
 ## Building from source
 
 ```bash
@@ -166,6 +147,11 @@ Or just build without installing:
 ```bash
 ./Scripts/build-app.sh   # produces build/SpaceSwitcher.app
 ```
+
+Note: macOS ties the Accessibility grant to the app's code signature, and the build is
+ad-hoc signed, so each rebuild reads as a new app. After rebuilding, remove SpaceSwitcher
+in System Settings → Privacy & Security → Accessibility with `−` and add it back. Installed
+copies are unaffected — this only applies if you are rebuilding.
 
 ### Diagnostics
 
