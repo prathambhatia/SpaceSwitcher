@@ -21,6 +21,8 @@ swiftc \
   "$ROOT/Sources/SpaceSwitcher/Utilities/PrivateSpaceAPI.swift" \
   "$ROOT/Sources/SpaceSwitcher/Utilities/Log.swift" \
   "$ROOT/Sources/SpaceSwitcher/Services/SpaceSwitcher.swift" \
+  "$ROOT/Sources/SpaceSwitcher/Services/ScriptableWindows.swift" \
+  "$ROOT/Sources/SpaceSwitcher/Services/SpaceWindowMemory.swift" \
   "$ROOT/Sources/SpaceSwitcher/Services/AccessibilityManager.swift" \
   "$ROOT/Diagnostics/main.swift"
 

@@ -50,6 +50,7 @@ public final class SpaceSwitcher {
 
     private let spaceManager: SpaceManager
     private let accessibility: AccessibilityManager
+    private let memory: SpaceWindowMemory
 
     /// Invalidates an in-flight step sequence when a new request arrives, so two
     /// navigations cannot fight over the keyboard.
@@ -57,9 +58,14 @@ public final class SpaceSwitcher {
     /// Held for the duration of a step sequence to keep App Nap from throttling it.
     private var activity: NSObjectProtocol?
 
-    public init(spaceManager: SpaceManager, accessibility: AccessibilityManager) {
+    public init(
+        spaceManager: SpaceManager,
+        accessibility: AccessibilityManager,
+        memory: SpaceWindowMemory = SpaceWindowMemory()
+    ) {
         self.spaceManager = spaceManager
         self.accessibility = accessibility
+        self.memory = memory
     }
 
     @discardableResult
@@ -84,6 +90,12 @@ public final class SpaceSwitcher {
             return switchToDesktop(space, in: spaces, ordinal: ordinal)
 
         case .fullscreen:
+            // An app owning several fullscreen Spaces cannot be reached by activation, but
+            // raising the exact window that lives there can — if we have learned which one.
+            if !ownsSingleSpace(space, in: spaces), raiseRememberedWindow(for: space) {
+                return .switched(space)
+            }
+
             if ownsSingleSpace(space, in: spaces), let app = space.applications.first {
                 app.activate()
                 // Activation silently does nothing when the app has no live window — a
@@ -120,6 +132,40 @@ public final class SpaceSwitcher {
     }
 
     // MARK: - Fullscreen
+
+    /// Jumps straight to `space` by raising the window previously learned to live there.
+    ///
+    /// Returns false when nothing has been learned yet, the app is not scriptable, or the
+    /// window has since gone — the caller then steps there and learns on arrival.
+    private func raiseRememberedWindow(for space: SpaceInfo) -> Bool {
+        guard let remembered = memory.lookup(spaceID: space.id) else { return false }
+        guard ScriptableWindows.raise(windowID: remembered.windowID, bundleID: remembered.bundleID) else {
+            memory.forget(spaceID: space.id)
+            return false
+        }
+
+        // Raising reports success even if it left us elsewhere, so confirm and re-learn.
+        let token = beginNavigation()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationGrace) { [weak self] in
+            guard let self, self.navigationToken == token else { return }
+            if self.spaceManager.isCurrent(space) {
+                self.endNavigation()
+            } else {
+                self.memory.forget(spaceID: space.id)
+                self.step(towardsSpace: space.id, budget: 12, token: token)
+            }
+        }
+        return true
+    }
+
+    /// Records which window occupies a Space, once we are standing on it.
+    private func learnWindow(for space: SpaceInfo) {
+        guard case .fullscreen = space.kind,
+              let bundleID = space.applications.first?.bundleIdentifier,
+              let windowID = ScriptableWindows.frontWindowID(bundleID: bundleID)
+        else { return }
+        memory.record(spaceID: space.id, bundleID: bundleID, windowID: windowID)
+    }
 
     /// True when no other Space is owned by the same application, making activation
     /// unambiguous.
@@ -211,7 +257,12 @@ public final class SpaceSwitcher {
             endNavigation()
             return
         }
-        guard !spaceManager.isCurrent(target) else { endNavigation(); return }
+        guard !spaceManager.isCurrent(target) else {
+            // Arrived by stepping — record the window here so next time is instant.
+            learnWindow(for: target)
+            endNavigation()
+            return
+        }
 
         guard let current = spaceManager.currentSpace(in: spaces) else {
             // Position unknown: jump to a Desktop, which puts us somewhere known.

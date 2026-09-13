@@ -96,6 +96,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>SpaceSwitcher raises a specific window to jump straight to the Space it occupies.</string>
 </dict>
 </plist>
 PLIST

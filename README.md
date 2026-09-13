@@ -73,7 +73,8 @@ Three mechanisms, because no single one reaches every kind of Space.
 | Desktop, with macOS's shortcut enabled | macOS's own ⌃N | yes |
 | Desktop, without it | slide with ⌃←/⌃→ | no |
 | Fullscreen app, the only Space that app owns | activate the app | yes |
-| Fullscreen app owning several Spaces | slide with ⌃←/⌃→ | no |
+| Fullscreen app owning several Spaces, once learned | raise that window via Apple Events | yes |
+| Fullscreen app owning several Spaces, first time | slide with ⌃←/⌃→, then remember | no |
 
 The last row is the interesting one. Two fullscreen windows of the same app — two Chrome
 windows, say — cannot be told apart by any public means: `activate()` lands on whichever
@@ -84,6 +85,19 @@ trip by jumping to the nearest Desktop first, which usually leaves only a step o
 
 Sliding re-reads the strip before every step and tracks its target by Space id rather than
 position, so creating a Desktop mid-move cannot make it land somewhere else.
+
+### Learning to jump instantly
+
+Two fullscreen windows of one app cannot be told apart by any public means — but an app's
+own AppleScript interface does see them all, and raising a window moves the display to its
+Space. There is no way to ask "which window is on Space N", so it is learned: the first
+time such a Space is reached by sliding, the window left in front is recorded against it,
+and every later press raises that window directly and arrives at once.
+
+macOS asks permission the first time (to let SpaceSwitcher control that app). The entry is
+only a cache — if the window is closed or moved, raising fails, and it slides once more and
+re-learns. Apps without an AppleScript interface, such as most Electron apps, keep sliding,
+though those almost always own a single fullscreen Space and are already instant.
 
 ### Why automatic Space rearranging gets turned off
 
@@ -102,7 +116,8 @@ still set the order yourself by dragging in Mission Control, and ⌘N follows.
 
 ## Known limitations
 
-- **Sliding is visible** for the cases in the table above.
+- **Sliding is visible** the first time a same-app fullscreen Space is used, and every
+  time for apps with no AppleScript interface.
 - **Empty Desktops** cannot be identified from window contents alone. Position normally
   comes straight from the window server, which does identify them; only the fallback path
   is affected.
