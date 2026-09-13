@@ -44,7 +44,7 @@ public final class SpaceManager {
     public func spaces() -> [SpaceInfo] {
         let details = spaceDetails()
         let order = orderedSpaceIDs(fallback: Array(details.fallbackOrder))
-        let liveWindows = allWindowIDs()
+        let owners = windowOwners()
 
         var result: [SpaceInfo] = []
         var desktopOrdinal = 0
@@ -57,11 +57,17 @@ public final class SpaceManager {
                 desktopOrdinal += 1
                 kind = .desktop(ordinal: desktopOrdinal)
             } else {
-                // A fullscreen Space whose window no longer exists is a leftover entry.
-                guard detail.windowIDs.contains(where: liveWindows.contains) else { continue }
                 // A Split View partner that has quit leaves a dead pid behind.
                 let livePIDs = detail.pids.filter { NSRunningApplication(processIdentifier: $0) != nil }
                 guard !livePIDs.isEmpty else { continue }
+
+                // The recorded window must still belong to this app. Window ids are reused,
+                // so merely existing is not enough — a dead Space kept its slot because its
+                // id had been handed to an unrelated app, and macOS then refused to navigate
+                // to it, leaving ⌘N ping-ponging around a position it could never reach.
+                guard detail.windowIDs.contains(where: { livePIDs.contains(owners[$0] ?? -1) }) else {
+                    continue
+                }
                 kind = .fullscreen(pids: livePIDs)
             }
 
@@ -160,9 +166,19 @@ public final class SpaceManager {
         windowIDs(options: [.optionOnScreenOnly, .excludeDesktopElements])
     }
 
-    /// Every window the server knows about, including those on other Spaces.
-    private func allWindowIDs() -> Set<CGWindowID> {
-        windowIDs(options: [.optionAll])
+    /// Owning process of every window the server knows about, across all Spaces.
+    private func windowOwners() -> [CGWindowID: pid_t] {
+        guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else {
+            return [:]
+        }
+        var owners: [CGWindowID: pid_t] = [:]
+        for window in raw {
+            guard let id = window[kCGWindowNumber as String] as? CGWindowID,
+                  let pid = window[kCGWindowOwnerPID as String] as? pid_t
+            else { continue }
+            owners[id] = pid
+        }
+        return owners
     }
 
     private func windowIDs(options: CGWindowListOption) -> Set<CGWindowID> {

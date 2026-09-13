@@ -57,6 +57,8 @@ public final class SpaceSwitcher {
     private var navigationToken = 0
     /// Held for the duration of a step sequence to keep App Nap from throttling it.
     private var activity: NSObjectProtocol?
+    /// Positions already stepped through, so an unreachable target cannot ping-pong.
+    private var visitedPositions: Set<Int> = []
 
     public init(
         spaceManager: SpaceManager,
@@ -204,6 +206,7 @@ public final class SpaceSwitcher {
 
     private func beginNavigation() -> Int {
         navigationToken += 1
+        visitedPositions.removeAll()
         // Without this the step chain stalls after the first keystroke: this is a
         // background accessory app with no visible UI, so App Nap throttles its scheduled
         // work as soon as the Space switches away from it.
@@ -275,6 +278,14 @@ public final class SpaceSwitcher {
         let delta = target.position - current.position
         Log.line("step: at \(current.position), want \(target.position), delta \(delta), budget \(budget)")
         guard delta != 0 else { endNavigation(); return }
+
+        // Landing somewhere already passed means macOS is skipping the target — it can
+        // happen when a Space is listed but not navigable — so stop rather than oscillate.
+        guard visitedPositions.insert(current.position).inserted else {
+            Log.line("step: position \(target.position) appears unreachable, giving up")
+            endNavigation()
+            return
+        }
 
         // Every ⌃← / ⌃→ costs an animation and can be dropped, so if a Desktop sits closer
         // to the target than we currently are, jump straight there with ⌃N and step from
