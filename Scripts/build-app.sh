@@ -1,9 +1,8 @@
 #!/bin/bash
 # Compiles SpaceSwitcher and wraps it in a standard .app bundle.
 #
-# Uses swiftc directly rather than `swift build` because this machine's SwiftPM
-# cannot launch, and pins the SDK because the default (MacOSX27.0.sdk) is newer
-# than the installed compiler. See README, "Toolchain note".
+# Uses swiftc directly rather than `swift build` so it works on machines where the
+# Command Line Tools' SwiftPM is broken. See README, "Toolchain note".
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,29 +10,70 @@ APP_NAME="SpaceSwitcher"
 BUNDLE_ID="com.prathambhatia.spaceswitcher"
 OUT_DIR="${SPACESWITCHER_OUT:-$ROOT/build}"
 APP="$OUT_DIR/$APP_NAME.app"
-SDK="${SPACESWITCHER_SDK:-/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk}"
 
-if [[ ! -d "$SDK" ]]; then
-  echo "error: SDK not found at $SDK" >&2
-  echo "       set SPACESWITCHER_SDK to a valid macOS SDK path" >&2
+# Picks an SDK the installed compiler can actually parse.
+#
+# Normally the default SDK is correct and no -sdk flag is needed. But a Command Line Tools
+# install can end up carrying an SDK newer than its own compiler (e.g. MacOSX27 with Swift
+# 6.3), and swiftc then rejects the standard library outright. Probing avoids hardcoding a
+# path that only suits one machine.
+select_sdk() {
+  if [[ -n "${SPACESWITCHER_SDK:-}" ]]; then
+    echo "$SPACESWITCHER_SDK"
+    return
+  fi
+
+  local probe
+  probe="$(mktemp -t spaceswitcher_probe).swift"
+  printf 'import AppKit\nlet _ = NSApplication.shared\n' > "$probe"
+
+  if swiftc -typecheck "$probe" >/dev/null 2>&1; then
+    rm -f "$probe"
+    echo ""  # default SDK works
+    return
+  fi
+
+  local candidate
+  for candidate in $(ls -d \
+      "$(xcode-select -p 2>/dev/null)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk \
+      /Library/Developer/CommandLineTools/SDKs/MacOSX*.sdk \
+      2>/dev/null | sort -rV); do
+    if swiftc -sdk "$candidate" -typecheck "$probe" >/dev/null 2>&1; then
+      rm -f "$probe"
+      echo "$candidate"
+      return
+    fi
+  done
+
+  rm -f "$probe"
+  echo "NONE"
+}
+
+SDK="$(select_sdk)"
+if [[ "$SDK" == "NONE" ]]; then
+  echo "error: no macOS SDK works with the installed Swift compiler" >&2
+  echo "       try: xcode-select --install   (or install Xcode)" >&2
   exit 1
 fi
+
+SDK_ARGS=()
+[[ -n "$SDK" ]] && SDK_ARGS=(-sdk "$SDK")
 
 echo "==> Cleaning"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-echo "==> Compiling (SDK: $(basename "$SDK"))"
+echo "==> Compiling${SDK:+ (SDK: $(basename "$SDK"))}"
 # macOS ships bash 3.2, which has no mapfile.
 SOURCES=()
 while IFS= read -r file; do
   SOURCES+=("$file")
 done < <(find "$ROOT/Sources/$APP_NAME" -name '*.swift' | sort)
+
 swiftc \
-  -sdk "$SDK" \
+  "${SDK_ARGS[@]}" \
   -swift-version 5 \
   -O \
-  -target arm64-apple-macos14.0 \
   -o "$APP/Contents/MacOS/$APP_NAME" \
   "${SOURCES[@]}"
 
@@ -47,7 +87,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>$APP_NAME</string>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-    <key>CFBundleName</key><string>Window Switcher</string>
+    <key>CFBundleName</key><string>SpaceSwitcher</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
@@ -68,5 +108,3 @@ echo "==> Signing"
 codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
 
 echo "==> Built $APP"
-echo
-echo "Run it with:   open \"$APP\""

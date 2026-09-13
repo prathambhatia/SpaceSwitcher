@@ -81,7 +81,7 @@ public final class SpaceSwitcher {
     public func switchTo(_ space: SpaceInfo, in spaces: [SpaceInfo]) -> Outcome {
         switch space.kind {
         case .desktop(let ordinal):
-            return switchToDesktop(space, ordinal: ordinal)
+            return switchToDesktop(space, in: spaces, ordinal: ordinal)
 
         case .fullscreen:
             if ownsSingleSpace(space, in: spaces), let app = space.applications.first {
@@ -93,7 +93,7 @@ public final class SpaceSwitcher {
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.activationGrace) { [weak self] in
                     guard let self, self.navigationToken == token else { return }
                     guard !self.spaceManager.isCurrent(space) else { return }
-                    self.step(towards: space, in: spaces, budget: spaces.count + 2, token: token)
+                    self.step(towardsSpace: space.id, budget: spaces.count + 2, token: token)
                 }
                 return .switched(space)
             }
@@ -103,16 +103,20 @@ public final class SpaceSwitcher {
 
     // MARK: - Desktops
 
-    private func switchToDesktop(_ space: SpaceInfo, ordinal: Int) -> Outcome {
-        guard ordinal >= 1, ordinal <= Self.digitKeyCodes.count else {
-            return .desktopShortcutUnavailable(space, desktopOrdinal: ordinal)
-        }
+    /// macOS's own ⌃N jumps to a Desktop instantly, but that shortcut is off by default and
+    /// a newly created Desktop arrives with it off, so it is treated as an optimisation
+    /// rather than a requirement: without it, the Desktop is reached by stepping, which
+    /// needs no setup at all.
+    private func switchToDesktop(_ space: SpaceInfo, in spaces: [SpaceInfo], ordinal: Int) -> Outcome {
         guard accessibility.isTrusted else { return .accessibilityRequired }
-        guard MissionControlShortcuts.isDesktopShortcutEnabled(ordinal: ordinal) else {
-            return .desktopShortcutUnavailable(space, desktopOrdinal: ordinal)
+
+        if ordinal >= 1,
+           ordinal <= Self.digitKeyCodes.count,
+           MissionControlShortcuts.isDesktopShortcutEnabled(ordinal: ordinal) {
+            post(keyCode: Self.digitKeyCodes[ordinal - 1], flags: .maskControl)
+            return .switched(space)
         }
-        post(keyCode: Self.digitKeyCodes[ordinal - 1], flags: .maskControl)
-        return .switched(space)
+        return navigate(to: space, in: spaces)
     }
 
     // MARK: - Fullscreen
@@ -148,7 +152,7 @@ public final class SpaceSwitcher {
         let token = beginNavigation()
         // Scheduled rather than called inline: the first keystroke must be posted from a
         // running run loop, otherwise the window server ignores it.
-        schedule(towards: target, in: spaces, budget: spaces.count + 2, token: token, after: 0.05)
+        schedule(towardsSpace: target.id, budget: spaces.count + 2, token: token, after: 0.05)
         return .navigating(target, steps: steps)
     }
 
@@ -193,16 +197,27 @@ public final class SpaceSwitcher {
     /// Runs on the main thread deliberately: a synthesised ⌃← / ⌃→ posted from a
     /// background thread is accepted by `CGEvent.post` and then silently ignored by the
     /// window server. Hence the scheduled-block chain rather than sleeping on a worker.
-    private func step(towards target: SpaceInfo, in spaces: [SpaceInfo], budget: Int, token: Int) {
+    private func step(towardsSpace targetID: Int, budget: Int, token: Int) {
         guard navigationToken == token else { return }
         guard budget > 0 else { endNavigation(); return }
+
+        // Re-read the strip every step and find the target by id, never by the position it
+        // held when navigation began. Creating a Desktop or closing a fullscreen window
+        // mid-flight renumbers everything after it, and a stale position would land on
+        // the wrong Space.
+        let spaces = spaceManager.spaces()
+        guard let target = spaces.first(where: { $0.id == targetID }) else {
+            // The Space was closed while we were on our way to it.
+            endNavigation()
+            return
+        }
         guard !spaceManager.isCurrent(target) else { endNavigation(); return }
 
         guard let current = spaceManager.currentSpace(in: spaces) else {
             // Position unknown: jump to a Desktop, which puts us somewhere known.
             guard let anchor = nearestAnchor(to: target, in: spaces) else { endNavigation(); return }
             post(keyCode: Self.digitKeyCodes[anchor.ordinal - 1], flags: .maskControl)
-            schedule(towards: target, in: spaces, budget: budget - 1, token: token, after: Self.anchorSettle)
+            schedule(towardsSpace: targetID, budget: budget - 1, token: token, after: Self.anchorSettle)
             return
         }
 
@@ -218,12 +233,12 @@ public final class SpaceSwitcher {
            abs(target.position - anchor.position) < abs(delta) - 1 {
             Log.line("step: anchoring on Desktop \(anchor.ordinal) at position \(anchor.position)")
             post(keyCode: Self.digitKeyCodes[anchor.ordinal - 1], flags: .maskControl)
-            schedule(towards: target, in: spaces, budget: budget - 1, token: token, after: Self.anchorSettle)
+            schedule(towardsSpace: targetID, budget: budget - 1, token: token, after: Self.anchorSettle)
             return
         }
 
         postArrow(keyCode: delta > 0 ? Self.rightArrow : Self.leftArrow)
-        schedule(towards: target, in: spaces, budget: budget - 1, token: token, after: Self.stepDelay)
+        schedule(towardsSpace: targetID, budget: budget - 1, token: token, after: Self.stepDelay)
     }
 
     /// Waits for the Space switch to actually complete before taking the next step.
@@ -233,8 +248,7 @@ public final class SpaceSwitcher {
     /// long and every switch feels sluggish. macOS reports completion directly, so wait
     /// for that, with a timeout so a swallowed keystroke cannot hang the sequence.
     private func schedule(
-        towards target: SpaceInfo,
-        in spaces: [SpaceInfo],
+        towardsSpace targetID: Int,
         budget: Int,
         token: Int,
         after delay: TimeInterval
@@ -249,7 +263,7 @@ public final class SpaceSwitcher {
             // The notification can land marginally before the window server's own state
             // catches up, so let it settle before reading position.
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleAfterChange) {
-                self?.step(towards: target, in: spaces, budget: budget, token: token)
+                self?.step(towardsSpace: targetID, budget: budget, token: token)
             }
         }
 
