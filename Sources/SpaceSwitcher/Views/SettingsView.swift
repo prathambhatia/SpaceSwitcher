@@ -38,6 +38,8 @@ public final class SettingsModel: ObservableObject {
     }
 
     public func setLaunchAtLogin(_ enabled: Bool) {
+        // Remembered so the launch-time re-assert cannot silently undo this choice.
+        loginItem.isOptedOut = !enabled
         _ = enabled ? loginItem.enable() : loginItem.disable()
         launchAtLogin = loginItem.isEnabled
     }
@@ -103,15 +105,15 @@ public struct SettingsView: View {
 
     private var desktopShortcutSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Desktop shortcuts not enabled", systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+            Label("Optional: faster Desktop switching", systemImage: "hare")
+                .foregroundStyle(.secondary)
                 .font(.headline)
 
             Text(
-                "macOS has no public API to jump to a Desktop, so its own "
-                    + "\"Switch to Desktop N\" shortcut is used. "
-                    + "Desktop \(model.desktopsMissingShortcuts.map(String.init).joined(separator: ", ")) "
-                    + "still needs enabling."
+                "Desktop \(model.desktopsMissingShortcuts.map(String.init).joined(separator: ", ")) "
+                    + "is reached by sliding across the Spaces in between. Enabling macOS's own "
+                    + "\"Switch to Desktop\" shortcut makes it jump instantly instead. "
+                    + "Everything works without this."
             )
             .font(.callout)
             .foregroundStyle(.secondary)

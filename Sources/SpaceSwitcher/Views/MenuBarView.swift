@@ -61,7 +61,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
         if !missing.isEmpty {
             menu.addItem(.separator())
             let warning = NSMenuItem(
-                title: "⚠️ Desktop \(missing.map(String.init).joined(separator: ", ")) needs its shortcut enabled",
+                title: "Speed up Desktop \(missing.map(String.init).joined(separator: ", "))…",
                 action: #selector(openKeyboardSettings),
                 keyEquivalent: ""
             )
@@ -99,7 +99,7 @@ public final class MenuBarController: NSObject, NSMenuDelegate {
 
         if case .desktop(let ordinal) = space.kind,
            !MissionControlShortcuts.isDesktopShortcutEnabled(ordinal: ordinal) {
-            item.toolTip = "Needs 'Switch to Desktop \(ordinal)' enabled in System Settings."
+            item.toolTip = "Reached by sliding. Enable 'Switch to Desktop \(ordinal)' in System Settings to jump instantly."
         }
         return item
     }

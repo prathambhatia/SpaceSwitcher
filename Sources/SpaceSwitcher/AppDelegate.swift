@@ -27,7 +27,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         menuBar?.onOpenSettings = { [weak self] in self?.showSettings() }
 
-        loginItem.enableUnlessUserDecided()
+        loginItem.enableUnlessOptedOut()
 
         registeredShortcuts = hotkeys.registerAll()
         Log.line("registered \(registeredShortcuts)/9 hotkeys, login item \(loginItem.isEnabled ? "on" : "off")")

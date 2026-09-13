@@ -47,14 +47,24 @@ public final class LoginItemManager {
         }
     }
 
-    /// Registers on first run so the app starts at login without the user doing anything,
-    /// while still honouring a later decision to turn it off.
-    public func enableUnlessUserDecided() {
-        let key = "LoginItemConfigured"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+    private static let optedOutKey = "LaunchAtLoginDisabledByUser"
+
+    /// Records that the user turned this off, so it is never silently switched back on.
+    public var isOptedOut: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.optedOutKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.optedOutKey) }
+    }
+
+    /// Registers at every launch unless the user opted out.
+    ///
+    /// Deliberately not a once-only flag: registration is bound to the bundle's location,
+    /// so a copy launched from somewhere else — a build directory, a temporary folder —
+    /// takes the registration with it and leaves a stale path behind that starts nothing.
+    /// Re-asserting on launch makes the app on disk the one that wins.
+    public func enableUnlessOptedOut() {
+        guard !isOptedOut, !isEnabled else { return }
         if enable() {
-            UserDefaults.standard.set(true, forKey: key)
-            Log.line("login item registered")
+            Log.line("login item registered for \(Bundle.main.bundleURL.path)")
         }
     }
 }

@@ -79,23 +79,21 @@ cat <<EOF
 $(bold "Installed: $DEST")
 It is registered to start automatically at login.
 
-$(bold "Two manual steps remain — macOS does not allow these to be automated:")
+$(bold "One manual step remains — macOS does not allow an app to grant itself this:")
 
   1. Accessibility permission
      System Settings > Privacy & Security > Accessibility
      Add $DEST and switch it on.
 
-  2. Desktop shortcuts
-     System Settings > Keyboard > Keyboard Shortcuts... > Mission Control
-     Expand the nested "Mission Control" group and tick
-     "Switch to Desktop 1", "2", "3", and so on for each Desktop you have.
-
 Then press Cmd-1, Cmd-2, ... to jump to Spaces in Mission Control order.
 
-Opening both panes now.
+Optional, for instant Desktop jumps instead of a short slide:
+  System Settings > Keyboard > Keyboard Shortcuts... > Mission Control
+  Expand the nested "Mission Control" group and tick "Switch to Desktop 1", "2", ...
+  Everything works without this.
+
+Opening Accessibility now.
 EOF
 
 sleep 2
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" 2>/dev/null || true
-sleep 1
-open "x-apple.systempreferences:com.apple.Keyboard-Settings.extension" 2>/dev/null || true
