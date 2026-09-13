@@ -117,6 +117,40 @@ trade-off explicitly and chose to keep the public implementation.
 **Revisit if:** a layout appears where many Spaces sit far from any Desktop, making hops
 long enough to be irritating.
 
+## Decision 4a: A Space is live only if its window still belongs to its own app (2026-09-13)
+
+Added after a real failure. ⌘7 ping-ponged between positions 6 and 8 and never reached 7:
+
+```
+step: at 6, want 7, delta 1   -> lands on 8
+step: at 8, want 7, delta -1  -> lands on 6
+```
+
+Position 7 was a closed Pages Space that macOS itself refuses to navigate to, but which
+was still listed by `CGSCopyManagedDisplaySpaces` and so still occupied a slot — shifting
+every position after it as well.
+
+The ghost filter had asked only whether the Space's recorded `fs_wid` still existed
+anywhere in `CGWindowListCopyWindowInfo`. **Window ids are reused.** That Space's id
+(`128`) had since been handed to Preview (pid 647), while Pages' real windows were
+`168, 2545, 158, …`. Existence was true; relevance was not.
+
+A fullscreen Space is now kept only when one of its recorded windows is owned by one of
+the Space's own live processes.
+
+**The landmine, stated plainly:** any check of the form "does this window id still exist"
+is wrong on macOS. Ids are recycled, so the check passes for a completely unrelated app
+and the bug surfaces far from its cause — here as a navigation loop, not as a bad window
+lookup.
+
+As defence in depth, stepping now abandons the attempt when it revisits a position it has
+already passed through, instead of oscillating until its budget runs out. That bounds any
+future "listed but unreachable" Space to a single wasted hop.
+
+**Revisit if:** Spaces start disappearing from the strip that should be there — the
+ownership test is stricter than the old one, and an app that reports its windows unusually
+could be filtered out wrongly.
+
 ## Decision 5: Pace stepping by `activeSpaceDidChangeNotification`, not fixed delays
 
 Fixed delays failed in both directions: 0.6s dropped steps, and re-reading position too
