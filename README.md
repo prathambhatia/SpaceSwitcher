@@ -66,6 +66,26 @@ Then remove it from System Settings → General → Login Items, and from Access
 
 ## How it works
 
+### What does what
+
+Plain Swift against system frameworks — no dependencies, no scripting runtime, no daemon.
+SwiftPM appears nowhere at runtime; it is only a build system, and not even the one used
+here (see *Toolchain note*).
+
+| Job | API |
+|---|---|
+| Hear ⌘1 – ⌘9 globally | Carbon `RegisterEventHotKey` |
+| Jump to a Desktop | `CGEvent` — synthesises ⌃N |
+| Slide between Spaces | `CGEvent` — synthesises ⌃← / ⌃→ |
+| Focus an application | `NSRunningApplication.activate()` |
+| Raise one specific window of an app | Apple Events via `NSAppleScript` |
+| Read Space order and current Space | `CGSCopyManagedDisplaySpaces` (private, read-only) |
+| Identify Spaces and filter ghosts | `CGWindowListCopyWindowInfo` |
+| Know when a switch finished | `NSWorkspace.activeSpaceDidChangeNotification` |
+| Start at login | `SMAppService` |
+
+### Reaching a Space
+
 Three mechanisms, because no single one reaches every kind of Space.
 
 | Space | How it is reached | Instant? |
